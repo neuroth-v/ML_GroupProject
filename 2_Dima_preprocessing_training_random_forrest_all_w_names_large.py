@@ -1,12 +1,6 @@
 ######################################################################################################################
-# Output of this script - 
+# Output of this script  - MODEL (in .sav format, stored in /models folder) 
 #
-#
-######################################################################################################################
-
-
-
-
 # BASE
 import pandas as pd
 import numpy as np
@@ -116,15 +110,15 @@ from collections import Counter
 import urllib.request as req
 import zipfile
 import csv
-import re
-from nltk.tokenize import word_tokenize
 import string
 
 #####################################################################################################################################
+#####################################################
 # Constants
 
 SEED = 50
-FILE = './data/glove.6B.50d.txt'
+FILE = './data/glove.840B.300d.txt'
+#FILE = './data/glove.6B.50d.txt'
 
 
 STOP_WORDS_FULL = ['i', 'me', 'my', 'myself', 'we', 'our', 'ours', 
@@ -155,9 +149,34 @@ ZERO_VECTOR = [0,0,0,0,0,0,0,0,0,0,
                 0,0,0,0,0,0,0,0,0,0,
                 0,0,0,0,0,0,0,0,0,0,
                 0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,
                 0,0,0,0,0,0,0,0,0,0
             ]
-#####################################################################################################################################
+################################################################
 
 # Loading splits for processing
 X_train = pd.read_csv('./data/X_train.csv')
@@ -170,31 +189,41 @@ y_test = pd.read_csv('./data/y_test.csv')
 def load_glove_library(file): #Borrowed with little modifications from https://stackoverflow.com/questions/37793118/load-pretrained-glove-vectors-in-python
     print('Loading GloVe library '+ file)
     glove_model = {}
-    with open(file,'r+', encoding='utf-8') as f:
+    with open(file,'r', encoding='utf-8') as f:
         for line in f:
-            word = line.split()[0]
-            glove_model[word] = np.array(line.split()[1:], dtype=np.float64)
+            word = line.split(' ')[0]
+            glove_model[str(word)] = np.array(line.split()[1:], dtype=np.float64)
     print(f"{len(glove_model)} words loaded!")
     return glove_model
 
+def load_glove_large(file):
+    df = pd.read_csv(file, sep=" ", quoting=3, header=None, index_col=0)
+    glove_model = {key: val.values for key, val in df.T.items()}
+    return glove_model
+
+
 def text_prep(text):
     text=text.lower()
-    
+    for val in list(string.whitespace)[1:]:
+        while val in text:
+            text = text.replace(val, ' ')
     for char in ",.-=+_!?:;@#/|\$%^&*()[]{}":
         while (char in text):
             text = text.replace(char, ' ')
-        while '"' in text:
-            text = text.replace('"', ' ')
-        while "'" in text:
-            text = text.replace("'", ' ')
-        while " "*5 in text:
-            text = text.replace(" "*5, ' ')
-        while " "*4 in text:
-            text = text.replace(" "*4, ' ')
-        while " "*3 in text:
-            text = text.replace(" "*3, ' ')
-        while " "*2 in text:
-            text = text.replace(" "*2, ' ')
+    while '"' in text:
+        text = text.replace('"', ' ')
+    while "'" in text:
+        text = text.replace("'", ' ')
+    while " "*6 in text:
+        text = text.replace(" "*6, ' ')
+    while " "*5 in text:
+        text = text.replace(" "*5, ' ')
+    while " "*4 in text:
+        text = text.replace(" "*4, ' ')
+    while " "*3 in text:
+        text = text.replace(" "*3, ' ')
+    while " "*2 in text:
+        text = text.replace(" "*2, ' ')
     text = text.strip()
     return text
 
@@ -220,7 +249,8 @@ def whole_name_vectorizer(text, model):
 
 #For column transformer:
 def names_vectorizer(df:pd.DataFrame, colname, model):
-    new_col = df[colname].astype('string').str.lower().apply(lambda x: text_prep(x))
+    new_col = df[colname].astype('string').str.lower()
+    new_col = new_col.apply(lambda x: text_prep(x))
     for itr in range(new_col.shape[0]):
         vec_mod = 0
         new_col[itr] = whole_name_vectorizer(new_col[itr], model)
@@ -290,7 +320,7 @@ COLUMNS_TO_KEEP = ['name']
 #])
 
 
-GLOVE_LIB = load_glove_library(FILE)
+GLOVE_LIB = load_glove_large(FILE)
 
 preprocessor = ColumnTransformer(transformers=[
                     ('ct', OneHotEncoder(drop=None, handle_unknown='infrequent_if_exist', sparse_output=False), ['category']),
@@ -328,19 +358,21 @@ X_train_transf = X_train_transf.drop('vec_name', axis=1)
 X_test_transf = X_test_transf.drop('vec_name', axis=1)
 
 #################################################################################################
-#                                           MODEL           2
-model_2 = RandomForestClassifier(n_estimators=150, random_state=SEED, n_jobs=-1, verbose = 1)
-model_2.fit(X_train_transf, y_train.values.ravel())
+#                                           MODEL           3
+model_3 = RandomForestClassifier(n_estimators=150, random_state=SEED, n_jobs=-1, verbose = 1)
+model_3.fit(X_train_transf, y_train.values.ravel())
 ##################################################################################################
 
-filename = 'models/Dima_random_forrest_all_w_namevec_bins.sav'
-pickle.dump(model_2, open(filename, 'wb'))
+filename = 'models/Dima_random_forrest_all_w_namevec_bins_large.sav'
+pickle.dump(model_3, open(filename, 'wb'))
 
 ##################################################################################################
 
-pred_2 = model_2.predict(X_test_transf)
-#pred_2 = (model_2.predict_proba(X_test_transf)[:,1] >= 0.4).astype(bool)
+pred_3 = model_3.predict(X_test_transf)
+#pred_3 = (model_3.predict_proba(X_test_transf)[:,1] >= 0.4).astype(bool)
 
-conf_mat_2 = confusion_matrix(y_test, pred_2)/1000
+conf_mat_3 = confusion_matrix(y_test, pred_3)/1000
 
-print(classification_report(y_test, pred_2))
+print (conf_mat_3)
+
+print(classification_report(y_test, pred_3))
