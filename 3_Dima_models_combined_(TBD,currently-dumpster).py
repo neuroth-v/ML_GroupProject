@@ -1,197 +1,119 @@
-# Base and Sys
+######################################################################################################################
+# Output of this script - JOINED MODEL final_joined.sav (in /models folder)  
+#
+# BASE
 import pandas as pd
 import numpy as np
-import warnings
-warnings.filterwarnings('ignore')
-import urllib.request as req
-import zipfile
+import sklearn
+from sklearn import set_config
+import pickle
 
-# EDA
-import missingno as msno
-
-# Visualisation
+#VISUALIZATION
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import seaborn as sns
 from sklearn.tree import plot_tree
 
-# Text-Based Analyses
-import gensim.downloader
-from gensim.models import KeyedVectors
-import nltk
-from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
-import re
-from sklearn.metrics.pairwise import cosine_similarity
 
-# One-hot Encoding
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.compose import ColumnTransformer
+#??????????????????????? WHAT ARE YOU????????????????????????
+from scipy.stats import mode                                                        #?????????????????????????????????
+from sklearn.datasets import load_digits                                            #?????????????????????????????
+from sklearn.decomposition import PCA                                               #??????????????????????????
+from sklearn.manifold import TSNE                                                   #????????????????????????????
+from sklearn.datasets import make_classification                                    #??????????????????????????
+from scipy.special import expit                                                     #???????????????????????????
 
-# Voting
+
+#VOTING
 from sklearn.ensemble import VotingClassifier
 from sklearn.ensemble import StackingClassifier
+
 from xgboost import XGBClassifier
 
-# Classifiers
+
+#CLASIFIERS
 from sklearn.tree import DecisionTreeClassifier                                     
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import GridSearchCV, RandomizedSearchCV                
-from sklearn.linear_model import SGDClassifier                                      
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV                # search of the best params for random_forrest
+from sklearn.linear_model import SGDClassifier                                      #????????????????????????
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.neighbors import NearestNeighbors                                      
+from sklearn.neighbors import NearestNeighbors                                      #????????????????????????
 from sklearn.linear_model import LogisticRegression
 
-from sklearn.svm import SVC                                                        
-from sklearn.ensemble import AdaBoostClassifier 
+from sklearn.svm import SVC                                                         #???????????
+from sklearn.ensemble import AdaBoostClassifier                                     #?????????????
 
-# Regressors
+
+
+
+#REGRESSORS
 from sklearn.linear_model import Ridge
 from sklearn.linear_model import Lasso
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import ElasticNet
+
 from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import SGDRegressor 
+
+
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
 
-# Clustering
-from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
-import scipy.cluster.hierarchy as sch  
 
-# Scalers and Transformers
+
+
+
+#CLASTERING
+from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
+import scipy.cluster.hierarchy as sch                                               #????????????????????????????
+
+
+
+
+# SCALERS and TRANSFORMATION
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.preprocessing import FunctionTransformer
-from sklearn.pipeline import Pipeline                                               
+from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
+
 from sklearn.preprocessing import OneHotEncoder, KBinsDiscretizer
 from sklearn.impute import SimpleImputer
 
-# Metrics
+
+
+
+# metrics and processing 
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, recall_score, precision_score, roc_curve, roc_auc_score, f1_score
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+
 from sklearn.model_selection import train_test_split
 from scipy.stats import zscore, boxcox
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score                                 #??????????????????????????
 
 
 
-################################################################
-path = "data/kickstarter_projects.csv"
-SEED = 50
-URL1 = 'https://www.kaggle.com/api/v1/datasets/download/ulrikthygepedersen/kickstarter-projects'
-URL2 = 'https://www.kaggle.com/api/v1/datasets/download/watts2/glove6b50dtxt'
-################################################################
-
-# Import data
-req.urlretrieve(URL1, '/data/data.zip')
-zipfile.ZipFile('/data/data.zip', 'a').extractall(path='./data/')
-req.urlretrieve(URL2, '/data/glove.zip')
-zipfile.ZipFile('/data/glove.zip', 'a').extractall(path='./data/')
-
-df_kickstarter = pd.read_csv(path)
-df_kickstarter.head(2)
-
-# Converting dates to datetime objects
-df_kickstarter['Launched'] = pd.to_datetime(df_kickstarter['Launched'], format='%Y-%m-%d %H:%M:%S')
-df_kickstarter['Deadline'] = pd.to_datetime(df_kickstarter['Deadline'], format='%Y-%m-%d')
+# EDA data treatment
+import missingno
 
 
+# other (mainly system libs)
+import warnings
+import sys
+from io import StringIO
+import time
+import os
+import shutil
+from dotenv import load_dotenv
+from sqlalchemy import create_engine
+import itertools
+from collections import Counter
+import urllib.request as req
+import zipfile
 
-# Check for duplicates
-df_kickstarter.duplicated().sum()
+#####################################################################################################################################
+# Constants
 
-
-
-# Log transform the numerical columns. Handle potential errors from log(0)
-def log_transform(x):
-    return np.log1p(x)
-
-df_kickstarter['log_Goal'] = log_transform(df_kickstarter['Goal'])
-df_kickstarter['log_Pledged'] = log_transform(df_kickstarter['Pledged'])
-df_kickstarter['log_Backers'] = log_transform(df_kickstarter['Backers'])
-
-
-
-# log-transformed distributions look much better and more interpretable. Some observations:
-# - left peaks near zero: log-Pledged and log-Backers have sharp peak near 0 (very small or no funding/backers)
-# - distribution shapes: log-goal appears roughly symmetrical after transformation, indicating most projects have mid-range funding goals 
-
-
-# Select numerical columns for correlation analysis
-numerical_cols = ['Goal', 'Pledged', 'Backers', 'log_Goal', 'log_Pledged', 'log_Backers']
-
-# Calculate and plot Correlation matrix
-correlation_matrix = df_kickstarter[numerical_cols].corr()
-
-
-# High correlation between 'Pledged' and 'Backers' bzw. 'log_Pledged' and 'log_Backers' - potentially problematic. Options to handle:
-# - drop 1 feature, keep the other
-# - combine them into a new feature that captures the information from both variables, e.g. 'Pledge_per_Backer' (Ratio to analyze funding efficiency)
-# - PCA to reduce multicollinearity and create uncorrelated components from highly correlated features
-# - algorithm-specific solutions: dtrees, xgb don't mind correlated features
-
-# #### Relationships with the Target Variable
-
-
-# Filter for successful/failed campaigns and convert to binary
-df_kickstarter_filtered = df_kickstarter[df_kickstarter['State'].isin(['Successful', 'Failed'])]
-df_kickstarter_filtered['State_num'] = df_kickstarter_filtered['State'].map({'Successful': 1, 'Failed': 0})
-
-
-
-# Summary Statistics:
-summary_stats = df_kickstarter_filtered.groupby('State')[numerical_cols].agg(['mean', 'median'])
-print(summary_stats)
-
-# #### Distribution of the Target Variable
-
-# In absolute Numbers
-state_counts = df_kickstarter_filtered['State'].value_counts()
-print(state_counts)
-
-# In Percentage
-state_percentage = df_kickstarter_filtered['State'].value_counts(normalize=True) * 100
-print(state_percentage)
-
-# %% [markdown]
-# **Slight Class Imbalance**
-# - while 40:60 isn't severely imbalanced, it can still bias some ML models and lead to suboptimal performance for the minority class
-# - metrics: accuracy might appear high simply because the model predicts the majority class most of the time
-
-
-# Temporal patterns
-df_kickstarter_filtered['ProjectDuration'] = (df_kickstarter_filtered['Deadline'] - df_kickstarter['Launched']).dt.days
-df_kickstarter_filtered['LaunchYear'] = df_kickstarter_filtered['Launched'].dt.year
-df_kickstarter_filtered['LaunchMonth'] = df_kickstarter_filtered['Launched'].dt.month
-df_kickstarter_filtered['LaunchDay'] = df_kickstarter_filtered['Launched'].dt.day
-df_kickstarter_filtered['DayOfWeek'] = df_kickstarter_filtered['Launched'].dt.dayofweek #0=Monday, 6=Sunday
-
-# Percentage funded, handle 0 cases
-def calculate_percentage_funded(row):
-    if row['Goal'] == 0:
-        if row['Pledged'] > 0:
-            return 100  # 100% if Goal is 0 and Pledged > 0
-        else:
-            return 0    # 0% if Goal and Pledged are 0
-    else:
-        return (row['Pledged'] / row['Goal']) * 100
-
-# Apply function
-df_kickstarter_filtered['PercentageFunded'] = df_kickstarter_filtered.apply(calculate_percentage_funded, axis=1)
-
-# Backers per Dollar pledged, handle 0 cases
-def calculate_backers_per_dollar(row):
-    if row['Pledged'] == 0:
-        return 0 #Handle division by zero
-    else:
-        return row['Backers'] / row['Pledged']
-
-# Apply function
-df_kickstarter_filtered['BackersPerDollar'] = df_kickstarter_filtered.apply(calculate_backers_per_dollar, axis=1)
-
-# Check new features
-print(df_kickstarter_filtered[['Goal', 'Pledged', 'Backers', 'PercentageFunded', 'BackersPerDollar']].head())
+#####################################################################################################################################
 
 
 # Download necessary NLTK data
@@ -338,7 +260,89 @@ X_test.to_csv('./data/X_test.csv',index=False)
 y_train.to_csv('./data/y_train.csv',index=False)
 y_test.to_csv('./data/y_test.csv',index=False)
 
+########################################################################################################################
 
+
+# Loading splits for processing
+X_train = pd.read_csv('./data/X_train.csv')
+X_test = pd.read_csv('./data/X_test.csv')
+y_train = pd.read_csv('./data/y_train.csv')
+y_test = pd.read_csv('./data/y_test.csv')
+
+
+def calc_dol_p_back(df:pd.DataFrame)-> pd.DataFrame:
+    df['backers'] = df['backers'] + np.nextafter(0,1)
+    df['log_dol_p_back'] = df['pledged']/df['backers']
+    df['backers'] = df['backers'].astype('int') 
+    return df
+
+def max_frac(ds:pd.Series)-> pd.Series:
+    if ds.max() != 0:
+        ds = ds/ds.max()
+    return ds
+
+def log10p1_of_val(val):
+    return np.log10(val+1)
+
+
+def pre_processing(df:pd.DataFrame)-> pd.DataFrame:
+# Formating dates
+    df['launched'] = pd.to_datetime(df['launched'], format='%Y-%m-%d %H:%M:%S')
+    df['deadline'] = pd.to_datetime(df['deadline'], format='%Y-%m-%d')
+    df['lin_duration_days'] = df['deadline'] - df['launched']
+    df['lin_duration_days'] = max_frac(df['lin_duration_days'].dt.days.astype('int'))
+
+
+# Splitting ("dymming") and dumping launch dates:
+#           LAUNCH DATE
+    df['launched_day_frac'] = df['launched'].dt.day/31
+    df['launched_month_frac'] = df['launched'].dt.month/12
+    df['launched_year_frac'] = df['launched'].dt.year/2024
+    df['launched_dow'] = df['launched'].dt.day_name()
+    df = df.join(pd.get_dummies(df['launched_dow'], prefix='launched', prefix_sep='_', drop_first = False, dtype=float)).copy()
+    least_common = pd.DataFrame(df['launched_dow'].value_counts(sort=True, ascending=True)).index.tolist()[0]
+    df = df.drop('launched_'+least_common, axis=1)
+    df = df.drop(['launched_dow', 'launched'], axis=1)
+#           DEADLINE DATE
+    df['deadline_day_frac'] = df['deadline'].dt.day/31
+    df['deadline_month_frac'] = df['deadline'].dt.month/12
+    df['deadline_year_frac'] = df['deadline'].dt.year/2024
+    df['deadline_dow'] = df['deadline'].dt.day_name()
+    df = df.join(pd.get_dummies(df['deadline_dow'], prefix='deadline', prefix_sep='_', drop_first = False, dtype=float)).copy()
+    least_common = pd.DataFrame(df['deadline_dow'].value_counts(sort=True, ascending=True)).index.tolist()[0]
+    df = df.drop('deadline_'+least_common, axis=1)
+    df = df.drop(['deadline', 'deadline_dow'], axis=1)
+    
+# calculating dol_p_back:
+    #df = calc_dol_p_back(df)
+  
+# Logarithmizing
+    df['goal_lin'] = max_frac(df['goal'])
+    df['pledged_lin'] = max_frac(df['pledged'])
+    df['backers_lin'] = max_frac(df['backers'])
+#    df['pledged_log10'] = df['pledged'].apply(lambda x: log10p1_of_val(x))
+#    df['backers_log10'] = df['backers'].apply(lambda x: log10p1_of_val(x))
+
+    df = df.drop(['goal', 'pledged', 'backers'], axis=1).copy()
+
+
+# Splitting ("dymming") and object columns:
+    obs = []
+    for val in df.drop('name', axis=1).columns.tolist():
+        if df[val].dtype.name == 'object':
+            obs.append(val)
+    for val in obs:
+        least_common = pd.DataFrame(df[val].value_counts(sort=True, ascending=True)).index.tolist()[0]
+        df = df.join(pd.get_dummies(df[val], prefix=val, prefix_sep='_', drop_first = False, dtype=int))
+        df = df.drop(val+'_'+least_common, axis=1)
+    df = df.drop(obs, axis = 1)
+# Vectorizing name column:
+
+
+
+    
+    return df
+#####################################################################################################################################################
 
 
 
